@@ -1,0 +1,117 @@
+#!/bin/bash
+
+PATH=/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/bin
+SLACK_DESKTOP_USER=cn
+
+# do we need to use sudo to start docker containers?
+(id -Gn | grep -q docker) || SUDO=sudo
+
+USER_UID=$(id -u)
+USER_GID=$(id -g)
+
+XSOCK=/tmp/.X11-unix
+XAUTH=/tmp/.docker.xauth
+
+DOWNLOAD_DIR=$(xdg-user-dir DOWNLOAD)
+if [ -z "${DOWNLOAD_DIR}" ]; then
+  DOWNLOAD_DIR="${HOME}/Downloads"
+fi
+
+list_commands() {
+  echo ""
+  echo "Launch slack-desktop using:"
+  echo "  slack-desktop                     OR "
+  echo "  slack-desktop-wrapper slack-desktop"
+  echo ""
+  exit 1
+}
+
+cleanup_stopped_slack_desktop_instances() {
+  echo "Cleaning up stopped slack-desktop instances..."
+  for c in $(${SUDO} docker ps -a -q); do
+    image="$(${SUDO} docker inspect -f {{.Config.Image}} ${c})"
+    if [ "${image}" == "stifstof/slack-desktop:latest" ]; then
+      running=$(${SUDO} docker inspect -f {{.State.Running}} ${c})
+      if [ "${running}" != "true" ]; then
+        ${SUDO} docker rm "${c}" >/dev/null
+      fi
+    fi
+  done
+}
+
+prepare_docker_env_parameters() {
+  ENV_VARS+=" --env=USER_UID=${USER_UID}"
+  ENV_VARS+=" --env=USER_GID=${USER_GID}"
+  ENV_VARS+=" --env=DISPLAY=unix$DISPLAY"
+  ENV_VARS+=" --env=XAUTHORITY=${XAUTH}"
+  ENV_VARS+=" --env=TZ=$(date +%Z)"
+  ENV_VARS+=" --env=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket"
+}
+
+prepare_docker_volume_parameters() {
+  touch ${XAUTH}
+  xauth nlist :0 | sed -e 's/^..../ffff/' | xauth -f ${XAUTH} nmerge -
+
+  VOLUMES+=" --volume=${HOME}/.config/Slack:/home/${SLACK_DESKTOP_USER}/.config/Slack"
+  VOLUMES+=" --volume=${XSOCK}:${XSOCK}"
+  VOLUMES+=" --volume=${XAUTH}:${XAUTH}"
+  VOLUMES+=" --volume=/run/user/${USER_UID}/pulse:/run/pulse"
+  VOLUMES+=" --volume=/run/user/${USER_UID}/bus:/run/dbus/system_bus_socket"
+
+  if [ -d "${HOME}/tmp" ]; then
+    VOLUMES+=" --volume=${HOME}/tmp:/home/${SLACK_DESKTOP_USER}/tmp"
+  fi
+
+}
+
+prepare_docker_device_parameters() {
+  # enumerate video devices for webcam support
+  VIDEO_DEVICES=
+  for device in /dev/video*; do
+    if [ -c $device ]; then
+      VIDEO_DEVICES="${VIDEO_DEVICES} --device $device:$device"
+    fi
+  done
+}
+
+prog=$(basename $0)
+exec=$(which $prog)
+
+if [[ ${prog} == "slack-desktop-wrapper" ]]; then
+  case ${1} in
+  slack)
+    prog=${1}
+    shift
+    ;;
+  * | help)
+    list_commands
+    exit 1
+    ;;
+  esac
+elif [[ -n ${exec} ]]; then
+  # launch host binary if it exists
+  exec ${exec} $@
+fi
+
+cleanup_stopped_slack_desktop_instances
+prepare_docker_env_parameters
+prepare_docker_volume_parameters
+prepare_docker_device_parameters
+
+# chown $SLACK_DESKTOP_USER:$SLACK_DESKTOP_USER /tmp/.docker.xauth
+
+echo "Starting ${prog}..."
+docker run -d \
+  --name slack-desktop \
+  --network host \
+  --privileged \
+  ${ENV_VARS} \
+  ${VIDEO_DEVICES} \
+  --device /dev/dri \
+  --device /dev/snd \
+  -v /tmp/.X11-unix:/tmp/.X11-unix \
+  -e DISPLAY=unix$DISPLAY \
+  --cap-add=SYS_ADMIN \
+  ${VOLUMES} \
+  ${SLACK_EXTRA_DOCKER_ARGUMENTS} \
+  stifstof/slack-desktop:latest ${prog} $@ >/dev/null
