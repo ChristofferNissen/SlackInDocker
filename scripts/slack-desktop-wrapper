@@ -98,20 +98,20 @@ prepare_docker_env_parameters
 prepare_docker_volume_parameters
 prepare_docker_device_parameters
 
-# chown $SLACK_DESKTOP_USER:$SLACK_DESKTOP_USER /tmp/.docker.xauth
-
 echo "Starting ${prog}..."
 docker run -d \
   --name slack-desktop \
   --network host \
+  --memory=8g \
+  --shm-size=8g \
   --privileged \
-  ${ENV_VARS} \
-  ${VIDEO_DEVICES} \
+  --cap-add=SYS_ADMIN \
   --device /dev/dri \
   --device /dev/snd \
   -v /tmp/.X11-unix:/tmp/.X11-unix \
   -e DISPLAY=unix$DISPLAY \
-  --cap-add=SYS_ADMIN \
+  ${ENV_VARS} \
+  ${VIDEO_DEVICES} \
   ${VOLUMES} \
   ${SLACK_EXTRA_DOCKER_ARGUMENTS} \
   stifstof/slack-desktop:latest ${prog} $@ >/dev/null
