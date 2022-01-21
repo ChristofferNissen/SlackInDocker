@@ -1,16 +1,16 @@
 #!/bin/bash
 
-PATH=/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/bin
+PATH=/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/bin:/home/cn/Documents/git/docker-slack-desktop/bin
 SLACK_DESKTOP_USER=cn
 
 # do we need to use sudo to start docker containers?
-(id -Gn | grep -q docker) || SUDO=sudo
+(id -Gn | grep -q podman) || SUDO=sudo
 
 USER_UID=$(id -u)
 USER_GID=$(id -g)
 
 XSOCK=/tmp/.X11-unix
-XAUTH=/tmp/.docker.xauth
+XAUTH=/tmp/.docker.xauth-slack
 
 DOWNLOAD_DIR=$(xdg-user-dir DOWNLOAD)
 if [ -z "${DOWNLOAD_DIR}" ]; then
@@ -19,21 +19,21 @@ fi
 
 list_commands() {
   echo ""
-  echo "Launch slack-desktop using:"
-  echo "  slack-desktop                     OR "
-  echo "  slack-desktop-wrapper slack-desktop"
+  echo "Launch slack using:"
+  echo "  slack                     OR "
+  echo "  slack-wrapper slack"
   echo ""
   exit 1
 }
 
 cleanup_stopped_slack_desktop_instances() {
-  echo "Cleaning up stopped slack-desktop instances..."
-  for c in $(${SUDO} docker ps -a -q); do
-    image="$(${SUDO} docker inspect -f {{.Config.Image}} ${c})"
-    if [ "${image}" == "stifstof/slack-desktop:latest" ]; then
-      running=$(${SUDO} docker inspect -f {{.State.Running}} ${c})
+  echo "Cleaning up stopped slack instances..."
+  for c in $(${SUDO} podman ps -a -q); do
+    image="$(${SUDO} podman inspect -f {{.Config.Image}} ${c})"
+    if [ "${image}" == "docker.io/stifstof/slack:latest" ]; then
+      running=$(${SUDO} podman inspect -f {{.State.Running}} ${c})
       if [ "${running}" != "true" ]; then
-        ${SUDO} docker rm "${c}" >/dev/null
+        ${SUDO} podman rm "${c}" >/dev/null
       fi
     fi
   done
@@ -77,7 +77,7 @@ prepare_docker_device_parameters() {
 prog=$(basename $0)
 exec=$(which $prog)
 
-if [[ ${prog} == "slack-desktop-wrapper" ]]; then
+if [[ ${prog} == "slack-wrapper" ]]; then
   case ${1} in
   slack)
     prog=${1}
@@ -99,19 +99,16 @@ prepare_docker_volume_parameters
 prepare_docker_device_parameters
 
 echo "Starting ${prog}..."
-docker run -d \
-  --name slack-desktop \
+${SUDO} podman run -d \
+  --name slack \
   --network host \
-  --memory=8g \
-  --shm-size=8g \
   --privileged \
-  --cap-add=SYS_ADMIN \
+  --memory=2g \
+  --shm-size=2g \
   --device /dev/dri \
   --device /dev/snd \
-  -v /tmp/.X11-unix:/tmp/.X11-unix \
-  -e DISPLAY=unix$DISPLAY \
   ${ENV_VARS} \
   ${VIDEO_DEVICES} \
   ${VOLUMES} \
   ${SLACK_EXTRA_DOCKER_ARGUMENTS} \
-  stifstof/slack-desktop:latest ${prog} $@ >/dev/null
+  docker.io/stifstof/slack:latest ${prog} $@ >/dev/null

@@ -1,21 +1,24 @@
 launch:
-	slack-desktop-wrapper slack
+	slack-wrapper slack
 
 kill-container:
-	docker kill slack-desktop
+	podman kill slack
 
 build:
-	docker build . -t stifstof/slack-desktop:latest
+	podman build . -t docker.io/stifstof/slack:latest
 
 install:
-	docker run -it --rm \
-	--volume /usr/local/bin:/target \
-	stifstof/slack-desktop:latest install
+	podman run -it --rm \
+	--volume ./bin:/target \
+	docker.io/stifstof/slack:latest install
 
 uninstall:
-	docker run -it --rm \
-	--volume /usr/local/bin:/target \
-	stifstof/slack-desktop:latest uninstall
+	podman run -it --rm \
+	--volume ./bin:/target \
+	docker.io/stifstof/slack:latest uninstall
+
+push:
+	podman push docker.io/stifstof/slack:latest
 
 # convenience jobs
 
@@ -23,3 +26,6 @@ reinstall:
 	make uninstall
 	make build
 	make install
+
+add-to-path:
+	export PATH=$PATH:~/Documents/git/docker-slack-desktop/bin
