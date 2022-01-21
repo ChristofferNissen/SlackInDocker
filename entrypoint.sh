@@ -62,6 +62,7 @@ slack)
   create_user
   grant_access_to_video_devices
   echo "$1"
+
   launch_slack_desktop $@
   ;;
 *)

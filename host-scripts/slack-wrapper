@@ -6,8 +6,8 @@ SLACK_DESKTOP_USER=cn
 USER_UID=$(id -u)
 USER_GID=$(id -g)
 
-XSOCK=/home/${SLACK_DESKTOP_USER}/X/.X11-unix
-XAUTH=/home/${SLACK_DESKTOP_USER}/X/.docker.xauth-slack
+XSOCK=/home/${SLACK_DESKTOP_USER}/X/slack/.X11-unix
+XAUTH=/home/${SLACK_DESKTOP_USER}/X/slack/.docker.xauth-slack
 
 DOWNLOAD_DIR=$(xdg-user-dir DOWNLOAD)
 if [ -z "${DOWNLOAD_DIR}" ]; then
@@ -17,7 +17,6 @@ fi
 list_commands() {
   echo ""
   echo "Launch slack using:"
-  echo "  slack                     OR "
   echo "  slack-wrapper slack"
   echo ""
   exit 1
@@ -50,16 +49,15 @@ prepare_docker_env_parameters() {
 }
 
 create_x_folder() {
-  mkdir "/home/$SLACK_DESKTOP_USER/X/"
+  mkdir "/home/$SLACK_DESKTOP_USER/X/slack/"
   touch ${XAUTH}
   touch ${XSOCK}
 }
 
 prepare_docker_volume_parameters() {
-
-  if [ -d "/home/$SLACK_DESKTOP_USER/X/" ]; then
+  if [ -d "/home/$SLACK_DESKTOP_USER/X/slack/" ]; then
     echo "$FILE exists."
-    rm -rf "/home/$SLACK_DESKTOP_USER/X/"
+    rm -rf "/home/$SLACK_DESKTOP_USER/X/slack/"
     create_x_folder
   else
     echo "$FILE does not exist."
@@ -118,7 +116,6 @@ echo "Starting ${prog}..."
 podman run -d \
   --name slack \
   --network host \
-  --privileged \
   --memory=2g \
   --shm-size=2g \
   --device /dev/dri \
