@@ -3,14 +3,11 @@
 PATH=/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/bin:/home/cn/Documents/git/docker-slack-desktop/bin
 SLACK_DESKTOP_USER=cn
 
-# do we need to use sudo to start docker containers?
-(id -Gn | grep -q podman) || SUDO=sudo
-
 USER_UID=$(id -u)
 USER_GID=$(id -g)
 
-XSOCK=/tmp/.X11-unix
-XAUTH=/tmp/.docker.xauth-slack
+XSOCK=/home/${SLACK_DESKTOP_USER}/X/.X11-unix
+XAUTH=/home/${SLACK_DESKTOP_USER}/X/.docker.xauth-slack
 
 DOWNLOAD_DIR=$(xdg-user-dir DOWNLOAD)
 if [ -z "${DOWNLOAD_DIR}" ]; then
@@ -28,12 +25,16 @@ list_commands() {
 
 cleanup_stopped_slack_desktop_instances() {
   echo "Cleaning up stopped slack instances..."
-  for c in $(${SUDO} podman ps -a -q); do
-    image="$(${SUDO} podman inspect -f {{.Config.Image}} ${c})"
+  for c in $(podman ps -a -q); do
+    image="$(podman inspect -f {{.Config.Image}} ${c})"
     if [ "${image}" == "docker.io/stifstof/slack:latest" ]; then
-      running=$(${SUDO} podman inspect -f {{.State.Running}} ${c})
+      running=$(podman inspect -f {{.State.Running}} ${c})
       if [ "${running}" != "true" ]; then
-        ${SUDO} podman rm "${c}" >/dev/null
+        podman rm "${c}" >/dev/null
+      fi
+      if [ "${running}" == "true" ]; then
+        podman kill "${c}" >/dev/null
+        podman rm "${c}" >/dev/null
       fi
     fi
   done
@@ -48,8 +49,23 @@ prepare_docker_env_parameters() {
   ENV_VARS+=" --env=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket"
 }
 
-prepare_docker_volume_parameters() {
+create_x_folder() {
+  mkdir "/home/$SLACK_DESKTOP_USER/X/"
   touch ${XAUTH}
+  touch ${XSOCK}
+}
+
+prepare_docker_volume_parameters() {
+
+  if [ -d "/home/$SLACK_DESKTOP_USER/X/" ]; then
+    echo "$FILE exists."
+    rm -rf "/home/$SLACK_DESKTOP_USER/X/"
+    create_x_folder
+  else
+    echo "$FILE does not exist."
+    create_x_folder
+  fi
+
   xauth nlist :0 | sed -e 's/^..../ffff/' | xauth -f ${XAUTH} nmerge -
 
   VOLUMES+=" --volume=${HOME}/.config/Slack:/home/${SLACK_DESKTOP_USER}/.config/Slack"
@@ -99,7 +115,7 @@ prepare_docker_volume_parameters
 prepare_docker_device_parameters
 
 echo "Starting ${prog}..."
-${SUDO} podman run -d \
+podman run -d \
   --name slack \
   --network host \
   --privileged \

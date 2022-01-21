@@ -28,4 +28,4 @@ reinstall:
 	make install
 
 add-to-path:
-	export PATH=$PATH:~/Documents/git/docker-slack-desktop/bin
+	export PATH=$PATH:/home/cn/Documents/git/docker-slack-desktop/bin

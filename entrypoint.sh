@@ -33,6 +33,7 @@ create_user() {
       --gecos 'Slack' ${SLACK_DESKTOP_USER} >/dev/null 2>&1
   fi
   chown ${SLACK_DESKTOP_USER}:${SLACK_DESKTOP_USER} -R /home/${SLACK_DESKTOP_USER}
+  chown cn:cn -R /home/${SLACK_DESKTOP_USER}/X/
 }
 
 grant_access_to_video_devices() {
@@ -49,6 +50,7 @@ grant_access_to_video_devices() {
     fi
   done
 }
+
 
 launch_slack_desktop() {
   cd /home/${SLACK_DESKTOP_USER}
