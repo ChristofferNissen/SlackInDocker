@@ -56,13 +56,9 @@ create_x_folder() {
 
 prepare_docker_volume_parameters() {
   if [ -d "/home/$SLACK_DESKTOP_USER/X/slack/" ]; then
-    echo "$FILE exists."
     rm -rf "/home/$SLACK_DESKTOP_USER/X/slack/"
-    create_x_folder
-  else
-    echo "$FILE does not exist."
-    create_x_folder
   fi
+  create_x_folder
 
   xauth nlist :0 | sed -e 's/^..../ffff/' | xauth -f ${XAUTH} nmerge -
 
@@ -113,6 +109,7 @@ prepare_docker_volume_parameters
 prepare_docker_device_parameters
 
 echo "Starting ${prog}..."
+set -o xtrace
 podman run -d \
   --name slack \
   --network host \
