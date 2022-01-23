@@ -1,95 +1,58 @@
-This project is fully inspired of [mdouchement](https://github.com/mdouchement) [zoom.us](https://github.com/gfa01/slack-desktop)'s containerization.
+# Slack in container
+![](https://i.imgur.com/yI20s0A.png)
 
-# gfa/docker-slack-desktop
 
-# Introduction
+This projects objective is to provide Prospect-Mail as a container to enable multiple accounts to be used simultaniously.
 
-`Dockerfile` to create a [Docker](https://www.docker.com/) container image with [Slack](http://www.slack.com) for Linux with support for audio/video calls.
+Currently the project supports Docker and Podman. Select which runtime you want with the convenient make targets:
 
-The image uses [X11](http://www.x.org) and [Pulseaudio](http://www.freedesktop.org/wiki/Software/PulseAudio/) unix domain sockets on the host to enable audio/video support in Slack. These components are available out of the box on pretty much any modern linux distribution.
+Makefile (System setup)
+- docker_runtime
+- podman_runtime
+- current_runtime
 
-## Contributing
+The Makefile contains the relevant commands to use the application. The project works with two accounts, but can be extended to any number of accounts (not tested).
 
-If you find this image useful here's how you can help:
+Teams is not the most stable application, so you can expect to get familiar with the two first commands in the Maefile:
 
-- Send a pull request with your awesome features and bug fixes
-- Help users resolve their [issues](../../issues?q=is%3Aopen+is%3Aissue).
+Makefile
+- launch
+- kill-containers
+- install
+- uninstall
+- build
 
-# Getting started
+# Supported Container Runtimes
 
-## Installation
+Podman has been added as an alternative to Docker, to enable use on systems without root access. When using Podman, the container user's root will only have the permission of the user executing podman, and the container user will have UID > 10000 as per best practice recommendations.
 
-Automated builds of the image are available on [Dockerhub](https://hub.docker.com/r/gfa01/slack-desktop) and is the recommended method of installation.
+# Old Readme
 
-```bash
-docker pull gfa01/slack-desktop:latest
+This project is inspired from te works of gfa01/slack-desktop, but instead for Prospect-Mail. The old README explains the use of PulseAudio and XServer well
+
+You can find the README from the project which this is based on in the folder Old/
+
+## To get up and running
+
+Ensure you have two Microsoft configurations in ~/.config, mine are named Microsoft and MicrosoftTwo
+
+Either use the images i pushed to dockerhub by directly running
+
+```
+make install
+make launch
 ```
 
-Alternatively you can build the image yourself.
+and two Prospect-Mail applications should appear on your screen.
 
-```bash
-docker build -t gfa01/slack-desktop github.com/gfa/docker-slack-desktop
+Do you wish to modify the image, you can change the image name in the scripts in the scripts/ folder.
+
+
+## Uninstall
+
+Simply run
+
 ```
-
-With the image locally available, install the wrapper scripts using:
-
-```bash
-docker run -it --rm \
-  --volume /usr/local/bin:/target \
-  gfa01/slack-desktop:latest install
+make kill-containers
+make uninstall
 ```
-
-This will install a wrapper script to launch `slack`.
-
-> **Note**
->
-> If Slack is installed on the host then the host binary is launched instead of starting a Docker container. To force the launch of Slack in a container use the `slack-desktop-wrapper` script. For example, `slack-desktop-wrapper slack` will launch Slack inside a Docker container regardless of whether it is installed on the host or not.
-
-## How it works
-
-The wrapper scripts volume mount the X11 and pulseaudio sockets in the launcher container. The X11 socket allows for the user interface display on the host, while the pulseaudio socket allows for the audio output to be rendered on the host.
-
-When the image is launched the following directories are mounted as volumes
-
-- `${HOME}/.config/Slack`
-- `XDG_DOWNLOAD_DIR` or if it is missing `${HOME}/Downloads`
-
-This makes sure that your profile details are stored on the host and files received via Slack are available on your host in the appropriate download directory.
-
-
-# Maintenance
-
-## Upgrading
-
-To upgrade to newer releases:
-
-  1. Download the updated Docker image:
-
-  ```bash
-  docker pull gfa01/slack-desktop:latest
-  ```
-
-  2. Run `install` to make sure the host scripts are updated.
-
-  ```bash
-  docker run -it --rm \
-    --volume /usr/local/bin:/target \
-    gfa01/slack-desktop:latest install
-  ```
-
-## Uninstallation
-
-```bash
-docker run -it --rm \
-  --volume /usr/local/bin:/target \
-  gfa01/slack-desktop:latest uninstall
-```
-
-## Shell Access
-
-For debugging and maintenance purposes you may want access the containers shell. If you are using Docker version `1.3.0` or higher you can access a running containers shell by starting `bash` using `docker exec`:
-
-```bash
-docker exec -it slack-desktop bash
-```
-# SlackInDocker

@@ -1,25 +1,53 @@
+include .env
+
 launch:
-	slack-desktop-wrapper slack
+	slack-wrapper slack
 
 kill-container:
-	docker kill slack-desktop
+	${CONTAINER_ENGINE} kill slack
 
 build:
-	docker build . -t stifstof/slack-desktop:latest
+	${CONTAINER_ENGINE} build -t docker.io/stifstof/slack:latest -f Containerfile .
+
+build-no-cache:
+	${CONTAINER_ENGINE} build --no-cache -t docker.io/stifstof/slack:latest -f Containerfile .
 
 install:
-	docker run -it --rm \
-	--volume /usr/local/bin:/target \
-	stifstof/slack-desktop:latest install
+	${CONTAINER_ENGINE} run -it --rm \
+	--volume ${PWD}/bin:/target \
+	docker.io/stifstof/slack:latest install
 
 uninstall:
-	docker run -it --rm \
-	--volume /usr/local/bin:/target \
-	stifstof/slack-desktop:latest uninstall
+	${CONTAINER_ENGINE} run -it --rm \
+	--volume ${PWD}/bin:/target \
+	docker.io/stifstof/slack:latest uninstall
 
 # convenience jobs
+
+push:
+	echo ${DOCKERHUB_STIFSTOF_PW} | ${CONTAINER_ENGINE} login docker.io -u stifstof --password-stdin
+	${CONTAINER_ENGINE} push docker.io/stifstof/slack:latest
 
 reinstall:
 	make uninstall
 	make build
 	make install
+
+create-empty-config-folders:
+	mkdir ~/.config/Slack
+
+# system setup
+
+add-to-path:
+	export PATH=$PATH:/home/cn/Documents/git/docker-slack-desktop/bin
+
+podman_runtime:
+	rm -f .env
+	echo "CONTAINER_ENGINE=podman" >> .env
+
+docker_runtime:
+	rm -f .env
+	echo "CONTAINER_ENGINE=docker" >> .env
+
+current_runtime:
+	cat .env

@@ -1,0 +1,146 @@
+#!/bin/bash
+
+PATH=/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/bin:/home/cn/Documents/git/docker-slack-desktop/bin
+SLACK_DESKTOP_USER=$(whoami)
+
+# Container runtime (docker or podman)
+CONTAINER_ENGINE="${CONTAINER_ENGINE}"
+# Local .env
+if [ -f "/home/$SLACK_DESKTOP_USER/Documents/git/docker-slack-desktop/.env" ]; then
+    # Load Environment Variables
+    export $(cat /home/$SLACK_DESKTOP_USER/Documents/git/docker-slack-desktop/.env | grep -v '#' | awk '/=/ {print $1}')
+    # For instance, will be example_kaggle_key
+    echo $CONTAINER_ENGINE
+fi
+if [ -z "$CONTAINER_ENGINE" ]
+then
+  echo "\$CONTAINER_ENGINE is empty. Defaulting to docker"
+  CONTAINER_ENGINE="docker"
+fi
+
+USER_UID=$(id -u)
+USER_GID=$(id -g)
+
+XSOCK=/home/${SLACK_DESKTOP_USER}/X/slack/.X11-unix
+XAUTH=/home/${SLACK_DESKTOP_USER}/X/slack/.docker.xauth
+
+DOWNLOAD_DIR=$(xdg-user-dir DOWNLOAD)
+if [ -z "${DOWNLOAD_DIR}" ]; then
+  DOWNLOAD_DIR="${HOME}/Downloads"
+fi
+
+list_commands() {
+  echo ""
+  echo "Launch slack using:"
+  echo "  slack-wrapper slack"
+  echo ""
+  exit 1
+}
+
+cleanup_stopped_slack_desktop_instances() {
+  echo "Cleaning up stopped slack instances..."
+  for c in $(${CONTAINER_ENGINE} ps -a -q); do
+    image="$(${CONTAINER_ENGINE} inspect -f {{.Config.Image}} ${c})"
+    if [ "${image}" == "docker.io/stifstof/slack:latest" ]; then
+      running=$(${CONTAINER_ENGINE} inspect -f {{.State.Running}} ${c})
+      if [ "${running}" != "true" ]; then
+        ${CONTAINER_ENGINE} rm "${c}" >/dev/null
+      fi
+      if [ "${running}" == "true" ]; then
+        ${CONTAINER_ENGINE} kill "${c}" >/dev/null
+        ${CONTAINER_ENGINE} rm "${c}" >/dev/null
+      fi
+    fi
+  done
+}
+
+prepare_extra_arguments() {
+  if [ "$CONTAINER_ENGINE" == "docker" ]; then
+    SLACK_EXTRA_DOCKER_ARGUMENTS+="--privileged"
+  fi
+}
+
+prepare_docker_env_parameters() {
+  ENV_VARS+=" --env=USER_UID=${USER_UID}"
+  ENV_VARS+=" --env=USER_GID=${USER_GID}"
+  ENV_VARS+=" --env=DISPLAY=unix$DISPLAY"
+  ENV_VARS+=" --env=XAUTHORITY=${XAUTH}"
+  ENV_VARS+=" --env=TZ=$(date +%Z)"
+  ENV_VARS+=" --env=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket"
+}
+
+create_x_folder() {
+  mkdir "/home/$SLACK_DESKTOP_USER/X/slack/"
+  touch ${XAUTH}
+  touch ${XSOCK}
+}
+
+prepare_docker_volume_parameters() {
+  if [ -d "/home/$SLACK_DESKTOP_USER/X/slack/" ]; then
+    rm -rf "/home/$SLACK_DESKTOP_USER/X/slack/"
+  fi
+  create_x_folder
+
+  xauth nlist :0 | sed -e 's/^..../ffff/' | xauth -f ${XAUTH} nmerge -
+
+  VOLUMES+=" --volume=${HOME}/.config/Slack:/home/${SLACK_DESKTOP_USER}/.config/Slack"
+  VOLUMES+=" --volume=${XSOCK}:${XSOCK}"
+  VOLUMES+=" --volume=${XAUTH}:${XAUTH}"
+  VOLUMES+=" --volume=/run/user/${USER_UID}/pulse:/run/pulse"
+  VOLUMES+=" --volume=/run/user/${USER_UID}/bus:/run/dbus/system_bus_socket"
+
+  if [ -d "${HOME}/tmp" ]; then
+    VOLUMES+=" --volume=${HOME}/tmp:/home/${SLACK_DESKTOP_USER}/tmp"
+  fi
+
+}
+
+prepare_docker_device_parameters() {
+  # enumerate video devices for webcam support
+  VIDEO_DEVICES=
+  for device in /dev/video*; do
+    if [ -c $device ]; then
+      VIDEO_DEVICES="${VIDEO_DEVICES} --device $device:$device"
+    fi
+  done
+}
+
+prog=$(basename $0)
+exec=$(which $prog)
+
+if [[ ${prog} == "slack-wrapper" ]]; then
+  case ${1} in
+  slack)
+    prog=${1}
+    shift
+    ;;
+  * | help)
+    list_commands
+    exit 1
+    ;;
+  esac
+elif [[ -n ${exec} ]]; then
+  # launch host binary if it exists
+  exec ${exec} $@
+fi
+
+cleanup_stopped_slack_desktop_instances
+prepare_docker_env_parameters
+prepare_docker_volume_parameters
+prepare_docker_device_parameters
+prepare_extra_arguments
+
+echo "Starting ${prog}..."
+set -o xtrace
+${CONTAINER_ENGINE} run -d \
+  --name slack \
+  --network host \
+  --memory=2g \
+  --shm-size=2g \
+  --device /dev/dri \
+  --device /dev/snd \
+  ${SLACK_EXTRA_DOCKER_ARGUMENTS} \
+  ${ENV_VARS} \
+  ${VIDEO_DEVICES} \
+  ${VOLUMES} \
+  docker.io/stifstof/slack:latest ${prog} $@ >/dev/null
