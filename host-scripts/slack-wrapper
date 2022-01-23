@@ -6,9 +6,9 @@ SLACK_DESKTOP_USER=$(whoami)
 # Container runtime (docker or podman)
 CONTAINER_ENGINE="${CONTAINER_ENGINE}"
 # Local .env
-if [ -f "/home/cn/Documents/git/docker-slack-desktop/.env" ]; then
+if [ -f "/home/$SLACK_DESKTOP_USER/Documents/git/docker-slack-desktop/.env" ]; then
     # Load Environment Variables
-    export $(cat .env | grep -v '#' | awk '/=/ {print $1}')
+    export $(cat /home/$SLACK_DESKTOP_USER/Documents/git/docker-slack-desktop/.env | grep -v '#' | awk '/=/ {print $1}')
     # For instance, will be example_kaggle_key
     echo $CONTAINER_ENGINE
 fi
