@@ -1,13 +1,28 @@
 #!/bin/bash
 
 PATH=/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/bin:/home/cn/Documents/git/docker-slack-desktop/bin
-SLACK_DESKTOP_USER=cn
+SLACK_DESKTOP_USER=$(whoami)
+
+# Container runtime (docker or podman)
+CONTAINER_ENGINE="${CONTAINER_ENGINE}"
+# Local .env
+if [ -f "/home/cn/Documents/git/docker-slack-desktop/.env" ]; then
+    # Load Environment Variables
+    export $(cat .env | grep -v '#' | awk '/=/ {print $1}')
+    # For instance, will be example_kaggle_key
+    echo $CONTAINER_ENGINE
+fi
+if [ -z "$CONTAINER_ENGINE" ]
+then
+  echo "\$CONTAINER_ENGINE is empty. Defaulting to docker"
+  CONTAINER_ENGINE="docker"
+fi
 
 USER_UID=$(id -u)
 USER_GID=$(id -g)
 
 XSOCK=/home/${SLACK_DESKTOP_USER}/X/slack/.X11-unix
-XAUTH=/home/${SLACK_DESKTOP_USER}/X/slack/.docker.xauth-slack
+XAUTH=/home/${SLACK_DESKTOP_USER}/X/slack/.docker.xauth
 
 DOWNLOAD_DIR=$(xdg-user-dir DOWNLOAD)
 if [ -z "${DOWNLOAD_DIR}" ]; then
@@ -24,19 +39,25 @@ list_commands() {
 
 cleanup_stopped_slack_desktop_instances() {
   echo "Cleaning up stopped slack instances..."
-  for c in $(podman ps -a -q); do
-    image="$(podman inspect -f {{.Config.Image}} ${c})"
+  for c in $(${CONTAINER_ENGINE} ps -a -q); do
+    image="$(${CONTAINER_ENGINE} inspect -f {{.Config.Image}} ${c})"
     if [ "${image}" == "docker.io/stifstof/slack:latest" ]; then
-      running=$(podman inspect -f {{.State.Running}} ${c})
+      running=$(${CONTAINER_ENGINE} inspect -f {{.State.Running}} ${c})
       if [ "${running}" != "true" ]; then
-        podman rm "${c}" >/dev/null
+        ${CONTAINER_ENGINE} rm "${c}" >/dev/null
       fi
       if [ "${running}" == "true" ]; then
-        podman kill "${c}" >/dev/null
-        podman rm "${c}" >/dev/null
+        ${CONTAINER_ENGINE} kill "${c}" >/dev/null
+        ${CONTAINER_ENGINE} rm "${c}" >/dev/null
       fi
     fi
   done
+}
+
+prepare_extra_arguments() {
+  if [ "$CONTAINER_ENGINE" == "docker" ]; then
+    SLACK_EXTRA_DOCKER_ARGUMENTS+="--privileged"
+  fi
 }
 
 prepare_docker_env_parameters() {
@@ -107,18 +128,19 @@ cleanup_stopped_slack_desktop_instances
 prepare_docker_env_parameters
 prepare_docker_volume_parameters
 prepare_docker_device_parameters
+prepare_extra_arguments
 
 echo "Starting ${prog}..."
 set -o xtrace
-podman run -d \
+${CONTAINER_ENGINE} run -d \
   --name slack \
   --network host \
   --memory=2g \
   --shm-size=2g \
   --device /dev/dri \
   --device /dev/snd \
+  ${SLACK_EXTRA_DOCKER_ARGUMENTS} \
   ${ENV_VARS} \
   ${VIDEO_DEVICES} \
   ${VOLUMES} \
-  ${SLACK_EXTRA_DOCKER_ARGUMENTS} \
   docker.io/stifstof/slack:latest ${prog} $@ >/dev/null
